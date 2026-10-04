@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# STM32CubeIDE build output
+**/Debug/
+
+# Runtime-generated data (not source)
+SmartFarm_OS/camera_snapshots/
+csv_dataset/dataset_photos/
+csv_dataset/dataset_sensor_log.csv
+csv_dataset/dataset_photo_log.csv

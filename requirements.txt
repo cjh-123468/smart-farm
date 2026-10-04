@@ -1,0 +1,9 @@
+pyserial==3.5
+numpy==2.2.6
+pandas==2.3.3
+joblib==1.5.3
+torch==2.13.0
+pyqtgraph==0.14.0
+PyQt5==5.15.11
+opencv-python==5.0.0.93
+requests==2.34.2

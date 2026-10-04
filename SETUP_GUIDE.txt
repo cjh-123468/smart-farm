@@ -1,0 +1,190 @@
+=========================================================
+스마트팜 프로젝트 - 새 환경 세팅 가이드
+작성일: 2026-10-04
+=========================================================
+
+이 문서는 새 PC/새 환경에서 이 프로젝트를 처음부터 다시 돌릴 때
+필요한 모든 설정 순서를 정리한 것입니다.
+
+전체 구성은 3개 파트입니다.
+  1) STM32 보드 (온습도 4개 센서 + CO2 센서 → 시리얼로 전송)
+  2) ESP32-CAM (Wi-Fi 카메라, 실시간 영상 + 사진 촬영)
+  3) PC 쪽 코드 (SmartFarm_OS 대시보드 / collect_dataset.py 데이터 수집)
+
+
+=========================================================
+[새 환경에서 꼭 가져가야 하는 파일/폴더 목록]
+=========================================================
+
+project/
+  camera_config.json                        ← ESP32-CAM IP, LED 밝기 설정 (제일 자주 수정하는 파일)
+  requirements.txt                          ← Python 패키지 목록
+
+  dht11_sensor (1)/DHT11_four_sensor/       ← STM32CubeIDE 프로젝트 전체 (펌웨어 소스)
+
+  esp32cam_webserver/
+    CameraWebServer_AI_THINKER/             ← 실제로 ESP32-CAM에 업로드한 스케치 (공식 예제 기반)
+      CameraWebServer.ino
+      app_httpd.cpp
+      board_config.h
+      camera_index.h
+      camera_pins.h
+
+  SmartFarm_OS/
+    main.py                                 ← 메인 대시보드 프로그램
+    ai_model.py                             ← ★ 현재 프로젝트에 없음! AI 예측 쓰려면 따로 구해서 넣어야 함
+    smartfarm_lstm.pth                      ← ★ 마찬가지로 없음 (AI 가중치 파일)
+    smartfarm_scaler.pkl                    ← ★ 마찬가지로 없음 (AI 스케일러 파일)
+    (위 3개 없어도 프로그램은 정상 실행됨, AI 패널만 "로딩 실패"로 표시)
+
+  csv_dataset/
+    collect_dataset.py                      ← 센서+사진 데이터 수집 스크립트
+    dht11_dataset.py                        ← (구) 센서값만 계속 로깅하는 간단 스크립트, 선택사항
+
+
+위 폴더/파일들을 새 PC로 복사하면 코드 자체는 전부 옮겨집니다.
+(STM32, ESP32-CAM 보드 자체는 물리적으로 들고 가야 하는 하드웨어입니다)
+
+
+=========================================================
+[1단계] STM32 보드 설정
+=========================================================
+
+하드웨어
+  - 보드: STM32F103RBTX (Nucleo 계열)
+  - DHT11 센서 4개 연결 (이미 배선된 상태 기준)
+      센서1: GPIOA, PIN 1
+      센서2: GPIOA, PIN 4
+      센서3: GPIOB, PIN 0
+      센서4: GPIOC, PIN 1
+  - CM1107N CO2 센서: USART3
+  - PC로 데이터 전송: USART2 (9600 baud), 1초 간격으로
+    "temp1,hum1,temp2,hum2,temp3,hum3,temp4,hum4,co2\r\n" 형식 전송
+
+소프트웨어
+  1. STM32CubeIDE 설치 (https://www.st.com/en/development-tools/stm32cubeide.html)
+  2. STM32CubeIDE에서 File > Open Projects from File System
+     → "project/dht11_sensor (1)/DHT11_four_sensor" 폴더 선택해서 열기
+  3. 보드를 ST-Link(USB)로 PC와 연결
+  4. 빌드(Build) 후 Run/Debug로 플래시 업로드
+  5. 업로드 후 보드가 자동으로 1초마다 센서값을 USART2로 출력 시작
+  6. 장치관리자에서 이 보드가 잡히는 COM 포트 번호 확인 (코드에서 COM3로 가정하고 있음,
+     다르면 SmartFarm_OS/main.py와 collect_dataset.py의 SERIAL_PORT 값을 수정)
+
+
+=========================================================
+[2단계] ESP32-CAM 설정
+=========================================================
+
+하드웨어
+  - ESP32-CAM (AI Thinker 호환보드) + CH340 micro-B 업로드 보드
+  - OV2640 카메라 모듈 (리본 케이블 커넥터에 잠금 걸쇠까지 제대로 눌러서 장착 필수.
+    헐겁게 꽂히면 캡처 시 "Server has encountered an unexpected error" 발생)
+  - Micro USB 데이터 케이블 (충전 전용 케이블은 인식 안 됨!)
+
+소프트웨어 설치
+  1. Arduino IDE 설치: https://www.arduino.cc/en/software
+  2. CH340 드라이버 설치 (업로드 보드 인식용)
+  3. Arduino IDE > File > Preferences > "Additional boards manager URLs"에 추가:
+       https://dl.espressif.com/dl/package_esp32_index.json
+     (안 되면 최신 주소: https://espressif.github.io/arduino-esp32/package_esp32_index.json)
+  4. Boards Manager에서 "esp32" (by Espressif Systems) 검색 후 설치
+  5. 보드를 USB로 연결 → 장치관리자에서 "포트(COM & LPT)"에
+     USB-SERIAL CH340 (COMx) 뜨는지 확인
+
+★★★ 한글(비영문) Windows 사용자 계정이면 반드시 읽을 것 ★★★
+  Windows 사용자 이름이 한글(또는 비 ASCII 문자)이면, ESP32 컴파일 시
+  ld.exe가 그 경로를 못 읽어서 다음과 같은 에러가 납니다:
+    "cannot open output file ... No such file or directory"
+  이 문제를 겪으면:
+  1. ESP32 보드 패키지 설치가 끝난 폴더
+     (%LocalAppData%\Arduino15, 수 GB) 전체를
+     영문 경로(예: C:\ArduinoData)로 복사(robocopy /E /MIR)
+  2. 영문 전용 폴더 C:\ArduinoLAD 를 만들고
+     그 안에 "Arduino15"라는 이름으로 junction을 생성해서 C:\ArduinoData를 가리키게 함
+       (명령 예: mklink /J C:\ArduinoLAD\Arduino15 C:\ArduinoData)
+     C:\ArduinoLAD\arduino 폴더도 만들어둠 (빌드 캐시용)
+  3. 아래 내용으로 C:\ArduinoLAD\launch_arduino_ide.bat 생성:
+       @echo off
+       set "ORIG_LAD=%LOCALAPPDATA%"
+       set "EXE=%ORIG_LAD%\Programs\Arduino IDE\Arduino IDE.exe"
+       set "LOCALAPPDATA=C:\ArduinoLAD"
+       start "" "%EXE%"
+  4. 이 배치파일을 바탕화면 바로가기로 만들어서, 항상 "이 바로가기로만"
+     Arduino IDE를 실행 (일반 아이콘으로 켜면 다시 에러남)
+
+스케치 업로드
+  1. 위 방법으로(또는 일반적으로) 연 Arduino IDE에서
+     project/esp32cam_webserver/CameraWebServer_AI_THINKER/CameraWebServer.ino 열기
+     (또는 Arduino IDE 메뉴: File > Examples > ESP32 > Camera > CameraWebServer 로 새로 열어도 동일)
+  2. board_config.h 에서 아래 줄 주석 해제 확인 (다른 모델 줄은 주석 처리):
+       #define CAMERA_MODEL_AI_THINKER
+  3. CameraWebServer.ino 상단에 현재 쓸 Wi-Fi 정보 입력:
+       const char *ssid = "와이파이이름";
+       const char *password = "비밀번호";
+     ※ 주의: 아이폰 개인용 핫스팟은 쓰지 말 것 (기기 간 통신을 막아서
+       노트북에서 ESP32-CAM에 접속이 안 됨). 집/학교 공유기, 카페 와이파이,
+       안드로이드 핫스팟은 가능.
+  4. 상단 보드 선택: AI Thinker ESP32-CAM, 포트: 위에서 확인한 COM 포트
+  5. 업로드(→) 버튼
+  6. 업로드 완료 후 시리얼 모니터(115200 baud) 열고 보드 리셋 버튼 클릭
+  7. "WiFi connected" 다음에 뜨는 IP 주소 확인
+       예: Camera Ready! Use 'http://192.168.x.x' to connect
+  8. 이 IP를 project/camera_config.json 의 "cam_ip" 값에 입력
+
+
+=========================================================
+[3단계] PC 쪽 코드 설정 (Python)
+=========================================================
+
+Python 설치
+  - Python 3.10 권장 (이 프로젝트 개발 당시 기준)
+  - 설치 후 터미널에서:
+       pip install -r requirements.txt
+
+PyQt5 관련 주의사항 (한글 Windows 계정 문제)
+  - SmartFarm_OS/main.py 실행 시 아무 창도 안 뜨고 조용히 꺼지면,
+    PyQt5가 Qt 플랫폼 플러그인(qwindows.dll)을 못 찾는 것임 (역시 한글 경로 문제)
+  - 해결: 아래 폴더를 가리키는 junction을 C:\PyQtPlatforms 이름으로 만들기
+       대상: <Python설치경로>\Lib\site-packages\PyQt5\Qt5\plugins\platforms
+       명령 예: mklink /J C:\PyQtPlatforms "<그 경로>"
+  - main.py 상단에 이미 다음 코드가 있어서, C:\PyQtPlatforms가 존재하면 자동으로 사용함:
+       if os.path.isdir(r"C:\PyQtPlatforms"):
+           os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = r"C:\PyQtPlatforms"
+
+serial 패키지 충돌 주의
+  - pip install 과정에서 혹시 "module 'serial' has no attribute 'Serial'" 에러가 나면
+    잘못된 PyPI 패키지(이름만 같은 'serial', pyserial 아님)가 섞여 들어간 것.
+    해결: pip uninstall serial  (있으면) 후
+          pip install --force-reinstall pyserial
+
+설정 파일 확인
+  - project/camera_config.json 의 "cam_ip"를 ESP32-CAM 시리얼모니터에 뜬
+    실제 IP로 맞추기 (Wi-Fi 바뀔 때마다 이 값만 수정하면 됨)
+  - SmartFarm_OS/main.py, csv_dataset/collect_dataset.py 안의
+    SERIAL_PORT (또는 self.port) 값이 STM32가 잡힌 COM 포트와 일치하는지 확인
+
+실행
+  - 대시보드 실행 (실시간 모니터링 + 라이브 캠 + 10분마다 자동 스냅샷):
+       cd SmartFarm_OS
+       python main.py
+  - 데이터셋 수집 (센서 1분 + 사진 10분 주기로 로깅, SmartFarm_OS는 꺼둔 상태에서):
+       cd csv_dataset
+       python collect_dataset.py
+    (SmartFarm_OS와 collect_dataset.py는 같은 COM 포트를 쓰므로 동시 실행 불가)
+
+
+=========================================================
+[참고] 전체 데이터 흐름 요약
+=========================================================
+
+  STM32 (DHT11 x4 + CO2)
+      └─ USART2 시리얼(9600bps, COM포트) ──→ PC
+
+  ESP32-CAM (OV2640 카메라)
+      └─ Wi-Fi HTTP (포트 80: /capture, 포트 81: /stream) ──→ PC
+      (PC와 ESP32-CAM이 반드시 같은 Wi-Fi 네트워크에 있어야 함)
+
+  PC (Python)
+      ├─ SmartFarm_OS/main.py        : 실시간 대시보드 + AI 추론(선택) + 자동 스냅샷
+      └─ csv_dataset/collect_dataset.py : 학습용 데이터셋 수집 (센서 CSV + 사진 + 사진 로그 CSV)
