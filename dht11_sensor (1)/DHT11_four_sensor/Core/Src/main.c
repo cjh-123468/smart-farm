@@ -296,7 +296,10 @@ int main(void)
                       strlen((char*)sensorstr),
                       100);
 
-    HAL_Delay(1000);
+    // 센서 4개 딜레이(4x1000ms) + 읽기/CO2 처리 시간(~0.1~1s)을 합쳐
+    // 한 사이클이 총 약 15초가 되도록 마지막 딜레이를 늘림
+    // (1학기 때 학습한 LSTM 모델이 15초 간격 데이터를 기준으로 만들어졌기 때문)
+    HAL_Delay(10000);
   }
   /* USER CODE END 3 */
 }

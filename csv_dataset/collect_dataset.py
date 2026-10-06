@@ -34,8 +34,8 @@ CAM_IP, LED_INTENSITY = load_camera_config()
 CAM_CAPTURE_URL = f"http://{CAM_IP}/capture"
 CAM_CONTROL_URL = f"http://{CAM_IP}/control"
 
-SENSOR_INTERVAL_SEC = 60    # 센서값 기록 주기
-PHOTO_INTERVAL_SEC = 600    # 사진 촬영 주기
+SENSOR_INTERVAL_SEC = 15    # 센서값 기록 주기 (1학기 LSTM 학습 데이터와 동일한 간격: 15초 x 40스텝 = 10분 창)
+PHOTO_INTERVAL_SEC = 300    # 사진 촬영 주기 (10분 센서 창 하나당 2장씩 들어가도록 5분으로 설정)
 SENSOR_CSV = os.path.join(BASE_DIR, "dataset_sensor_log.csv")
 PHOTO_DIR = os.path.join(BASE_DIR, "dataset_photos")
 PHOTO_CSV = os.path.join(BASE_DIR, "dataset_photo_log.csv")
